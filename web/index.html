@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RequestLens</title>
+    <link rel="stylesheet" href="/assets/styles.css?v=20260618-light" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">RL</div>
+          <div>
+            <h1>RequestLens</h1>
+            <span id="healthText">待命</span>
+          </div>
+        </div>
+        <nav class="nav-tabs" aria-label="Primary">
+          <button class="nav-tab active" data-view="logs">请求日志</button>
+          <button class="nav-tab" data-view="rules">代理规则</button>
+        </nav>
+      </header>
+
+      <main>
+        <section id="logsView" class="view active">
+          <div class="toolbar">
+            <div class="toolbar-grid">
+              <label>
+                <span>地址</span>
+                <input id="filterQuery" type="search" placeholder="/sja/v1" />
+              </label>
+              <label>
+                <span>方法</span>
+                <select id="filterMethod">
+                  <option value="">全部</option>
+                  <option>GET</option>
+                  <option>POST</option>
+                  <option>PUT</option>
+                  <option>PATCH</option>
+                  <option>DELETE</option>
+                  <option>OPTIONS</option>
+                  <option>HEAD</option>
+                </select>
+              </label>
+              <label>
+                <span>状态码</span>
+                <input id="filterStatus" type="number" placeholder="200" min="100" max="599" />
+              </label>
+              <label>
+                <span>规则</span>
+                <select id="filterRule">
+                  <option value="">全部</option>
+                </select>
+              </label>
+              <label>
+                <span>类型</span>
+                <select id="filterType">
+                  <option value="">全部</option>
+                  <option value="errors">错误</option>
+                  <option value="json">JSON</option>
+                  <option value="stream">流式</option>
+                  <option value="websocket">WebSocket</option>
+                </select>
+              </label>
+            </div>
+            <div class="toolbar-actions">
+              <button id="refreshLogsBtn" class="icon-btn" title="刷新" aria-label="刷新">↻</button>
+              <button id="autoRefreshBtn" class="ghost-btn">自动刷新</button>
+              <button id="clearLogsBtn" class="danger-btn">清空</button>
+            </div>
+          </div>
+
+          <div class="split-layout">
+            <section class="panel table-panel">
+              <div class="panel-title">
+                <h2>流量记录</h2>
+                <span id="logsCount">0</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>时间</th>
+                      <th>方法</th>
+                      <th>状态</th>
+                      <th>原始地址</th>
+                      <th>耗时</th>
+                      <th>类型</th>
+                      <th>大小</th>
+                    </tr>
+                  </thead>
+                  <tbody id="logsTable"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <aside id="detailPanel" class="panel detail-panel">
+              <div class="empty-state">
+                <div class="pulse-line"></div>
+                <strong>未选择请求</strong>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section id="rulesView" class="view">
+          <div class="rules-layout">
+            <section class="panel">
+              <div class="panel-title">
+                <h2>代理规则</h2>
+                <button id="newRuleBtn" class="icon-text-btn"><span>＋</span>新增</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>启用</th>
+                      <th>名称</th>
+                      <th>前缀</th>
+                      <th>目标</th>
+                      <th>记录</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rulesTable"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="panel form-panel">
+              <div class="panel-title">
+                <h2 id="ruleFormTitle">新增规则</h2>
+                <span id="ruleFormMode">草稿</span>
+              </div>
+              <form id="ruleForm" class="rule-form">
+                <input id="ruleId" type="hidden" />
+                <label>
+                  <span>名称</span>
+                  <input id="ruleName" required placeholder="DeepSeek" />
+                </label>
+                <label>
+                  <span>本地前缀</span>
+                  <input id="rulePrefix" required placeholder="/sja/" />
+                </label>
+                <label>
+                  <span>目标地址</span>
+                  <input id="ruleTarget" required placeholder="https://api.deepseek.com/" />
+                </label>
+                <label>
+                  <span>分类</span>
+                  <input id="ruleCategory" placeholder="llm" />
+                </label>
+                <label>
+                  <span>Body 上限</span>
+                  <input id="ruleMaxBody" type="number" min="0" value="262144" />
+                </label>
+                <label>
+                  <span>CORS 策略</span>
+                  <select id="ruleCors">
+                    <option value="passthrough">透传</option>
+                    <option value="local">本地开发</option>
+                  </select>
+                </label>
+                <div class="toggle-grid">
+                  <label class="toggle"><input id="ruleEnabled" type="checkbox" checked /><span>启用规则</span></label>
+                  <label class="toggle"><input id="ruleReqBody" type="checkbox" checked /><span>记录请求体</span></label>
+                  <label class="toggle"><input id="ruleResBody" type="checkbox" checked /><span>记录响应体</span></label>
+                  <label class="toggle"><input id="ruleBinary" type="checkbox" /><span>二进制预览</span></label>
+                  <label class="toggle"><input id="ruleStream" type="checkbox" /><span>流式预览</span></label>
+                  <label class="toggle"><input id="ruleRedact" type="checkbox" checked /><span>敏感 Header 脱敏</span></label>
+                  <label class="toggle"><input id="ruleRedirect" type="checkbox" checked /><span>重写跳转地址</span></label>
+                </div>
+                <div class="form-actions">
+                  <button class="primary-btn" type="submit">保存</button>
+                  <button id="resetRuleBtn" class="ghost-btn" type="button">重置</button>
+                  <button id="testRuleBtn" class="ghost-btn" type="button">测试</button>
+                </div>
+              </form>
+              <pre id="ruleFeedback" class="feedback"></pre>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+    <script src="/assets/app.js?v=20260618-light"></script>
+  </body>
+</html>
