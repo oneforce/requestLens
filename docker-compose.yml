@@ -10,8 +10,5 @@ services:
       REQUESTLENS_DEFAULT_MAX_BODY_SIZE: "262144"
       REQUESTLENS_LOG_RETENTION_DAYS: "14"
     volumes:
-      - requestlens-data:/data
+      - "${REQUESTLENS_DATA_DIR:-./data}:/data"
     restart: unless-stopped
-
-volumes:
-  requestlens-data:

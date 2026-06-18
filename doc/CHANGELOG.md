@@ -1,5 +1,17 @@
 # RequestLens 变更记录
 
+## 未发布
+
+### 新增
+
+- 新增 `start.sh` 启动脚本。
+- 启动脚本默认将 SQLite 保存到项目 `data/` 目录。
+- 启动脚本支持 `REQUESTLENS_PORT` 和 `REQUESTLENS_DATA_DIR`。
+
+### 变更
+
+- Docker Compose 数据卷改为可配置的本地目录挂载，默认使用 `./data:/data`。
+
 ## v1.0.0 - 2026-06-18
 
 首次可用版本。

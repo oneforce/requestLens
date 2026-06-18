@@ -114,3 +114,35 @@
 - 在 README 中标注当前版本。
 - 创建 Git 提交和 `v1.0.0` 标签。
 - 设置远端为 `git@github.com:oneforce/requestLens.git` 并推送代码。
+
+### 启动脚本与 SQLite 持久化
+
+用户要求：
+
+> 给我写个shell 脚本， 启动服务， sqlite 需要保存起来
+
+处理计划：
+
+- 新增启动脚本。
+- 启动时固定创建并挂载本地 `data/` 目录。
+- SQLite 默认保存到 `data/requestlens.db`。
+- 保留通过环境变量切换端口和数据目录的能力。
+
+处理结果：
+
+- 已新增 `start.sh`。
+- 已将 Docker Compose 数据卷改为 `${REQUESTLENS_DATA_DIR:-./data}:/data`。
+- 已用 `REQUESTLENS_PORT=18080 ./start.sh` 验证启动成功。
+- 已确认容器挂载 `/Users/admin/Documents/RequestLens请求透镜/data -> /data`。
+- 已确认 SQLite 文件保存到 `data/requestlens.db`。
+
+### 提交状态确认
+
+用户询问：
+
+> 代码提交了吗
+
+处理计划：
+
+- 确认 `v1.0.0` 发布提交状态。
+- 将启动脚本、SQLite 本地持久化和相关文档改动提交并推送到远端。
