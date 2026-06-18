@@ -38,6 +38,22 @@ data/requestlens.db
 REQUESTLENS_DATA_DIR=/path/to/requestlens-data ./start.sh
 ```
 
+构建默认不再执行 `apt-get update`，运行镜像会直接复用 builder 中的 CA 证书，避免 Debian 包源卡住。
+
+如果 Docker Hub 拉取很慢，可以指定镜像仓库前缀后的基础镜像：
+
+```bash
+REQUESTLENS_GO_IMAGE=docker.m.daocloud.io/library/golang:1.23-bookworm \
+REQUESTLENS_RUNTIME_IMAGE=docker.m.daocloud.io/library/debian:bookworm-slim \
+./start.sh
+```
+
+Go 模块默认使用：
+
+```txt
+https://goproxy.cn,direct
+```
+
 也可以直接使用 Docker Compose：
 
 ```bash

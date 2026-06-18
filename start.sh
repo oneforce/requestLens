@@ -5,6 +5,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="${REQUESTLENS_DATA_DIR:-$ROOT_DIR/data}"
 PORT="${REQUESTLENS_PORT:-8080}"
 DB_FILE="$DATA_DIR/requestlens.db"
+GO_IMAGE="${REQUESTLENS_GO_IMAGE:-golang:1.23-bookworm}"
+RUNTIME_IMAGE="${REQUESTLENS_RUNTIME_IMAGE:-debian:bookworm-slim}"
+GOPROXY_VALUE="${GOPROXY:-https://goproxy.cn,direct}"
 
 compose() {
   if ! command -v docker >/dev/null 2>&1; then
@@ -65,10 +68,16 @@ copy_existing_sqlite
 
 export REQUESTLENS_PORT="$PORT"
 export REQUESTLENS_DATA_DIR="$DATA_DIR"
+export REQUESTLENS_GO_IMAGE="$GO_IMAGE"
+export REQUESTLENS_RUNTIME_IMAGE="$RUNTIME_IMAGE"
+export GOPROXY="$GOPROXY_VALUE"
 
 echo "启动 RequestLens..."
 echo "服务端口: $PORT"
 echo "SQLite 数据库: $DB_FILE"
+echo "Go 构建镜像: $GO_IMAGE"
+echo "运行基础镜像: $RUNTIME_IMAGE"
+echo "Go 模块代理: $GOPROXY_VALUE"
 
 compose up -d --build
 

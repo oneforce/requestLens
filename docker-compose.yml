@@ -1,6 +1,11 @@
 services:
   requestlens:
-    build: .
+    build:
+      context: .
+      args:
+        GO_IMAGE: "${REQUESTLENS_GO_IMAGE:-golang:1.23-bookworm}"
+        RUNTIME_IMAGE: "${REQUESTLENS_RUNTIME_IMAGE:-debian:bookworm-slim}"
+        GOPROXY: "${GOPROXY:-https://goproxy.cn,direct}"
     container_name: requestlens
     ports:
       - "${REQUESTLENS_PORT:-8080}:8080"

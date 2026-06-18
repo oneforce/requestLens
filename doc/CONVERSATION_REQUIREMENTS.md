@@ -146,3 +146,26 @@
 
 - 确认 `v1.0.0` 发布提交状态。
 - 将启动脚本、SQLite 本地持久化和相关文档改动提交并推送到远端。
+
+### Docker 构建卡住与镜像源
+
+用户反馈：
+
+> => [stage-1 2/5] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates   && rm -rf /var/lib/apt/lists/* 166.7s
+> ...
+> 卡住了， 使用镜像
+
+处理计划：
+
+- 去掉运行阶段的 `apt-get update`，避免 Debian 包源卡住。
+- 从 Go builder 阶段复制 CA 证书到运行镜像。
+- Docker Compose 增加基础镜像 build args。
+- 启动脚本支持 `REQUESTLENS_GO_IMAGE`、`REQUESTLENS_RUNTIME_IMAGE` 和 `GOPROXY`。
+
+处理结果：
+
+- 已移除运行阶段 `apt-get update && apt-get install ca-certificates`。
+- 已改为 `COPY --from=builder /etc/ssl/certs/ca-certificates.crt ...`。
+- 已通过 `REQUESTLENS_PORT=18080 ./start.sh` 验证构建启动成功。
+- 构建日志中运行阶段不再出现 `apt-get update`。
+- 健康检查通过，SQLite 本地挂载仍保持为项目 `data/` 目录。
