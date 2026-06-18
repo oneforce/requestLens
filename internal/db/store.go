@@ -151,12 +151,16 @@ func Open(path string) (*Store, error) {
 	if path == "" {
 		return nil, errors.New("database path is empty")
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := ensureWritableDatabasePath(path); err != nil {
 		return nil, err
 	}
 	handle, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, err
+	}
+	if err := handle.Ping(); err != nil {
+		_ = handle.Close()
+		return nil, fmt.Errorf("open sqlite database %q: %w", path, err)
 	}
 	handle.SetMaxOpenConns(1)
 	store := &Store{db: handle}
@@ -165,6 +169,53 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	return store, nil
+}
+
+func ensureWritableDatabasePath(path string) error {
+	if path == ":memory:" {
+		return nil
+	}
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create database directory %q: %w", dir, err)
+	}
+
+	info, err := os.Stat(dir)
+	if err != nil {
+		return fmt.Errorf("stat database directory %q: %w", dir, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("database directory path %q is not a directory", dir)
+	}
+
+	if info, err := os.Stat(path); err == nil {
+		if info.IsDir() {
+			return fmt.Errorf("database path %q is a directory", path)
+		}
+		file, err := os.OpenFile(path, os.O_RDWR, 0)
+		if err != nil {
+			return fmt.Errorf("database file %q is not writable: %w", path, err)
+		}
+		_ = file.Close()
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat database file %q: %w", path, err)
+	}
+
+	temp, err := os.CreateTemp(dir, ".requestlens-db-write-test-*")
+	if err != nil {
+		return fmt.Errorf("database directory %q is not writable: %w", dir, err)
+	}
+	tempName := temp.Name()
+	if err := temp.Close(); err != nil {
+		_ = os.Remove(tempName)
+		return fmt.Errorf("close database write test file %q: %w", tempName, err)
+	}
+	if err := os.Remove(tempName); err != nil {
+		return fmt.Errorf("remove database write test file %q: %w", tempName, err)
+	}
+
+	return nil
 }
 
 func (s *Store) Close() error {

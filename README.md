@@ -38,6 +38,12 @@ data/requestlens.db
 REQUESTLENS_DATA_DIR=/path/to/requestlens-data ./start.sh
 ```
 
+在 Linux 上，本地目录挂载常见权限问题。`start.sh` 会默认用当前宿主机用户的 UID/GID 运行容器，并在启动前检查 `data/` 是否可写。也可以手动指定：
+
+```bash
+REQUESTLENS_UID=$(id -u) REQUESTLENS_GID=$(id -g) ./start.sh
+```
+
 构建默认不再执行 `apt-get update`，运行镜像会直接复用 builder 中的 CA 证书，避免 Debian 包源卡住。
 
 如果 Docker Hub 拉取很慢，可以指定镜像仓库前缀后的基础镜像：

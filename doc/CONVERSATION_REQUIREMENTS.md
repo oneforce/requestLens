@@ -169,3 +169,37 @@
 - 已通过 `REQUESTLENS_PORT=18080 ./start.sh` 验证构建启动成功。
 - 构建日志中运行阶段不再出现 `apt-get update`。
 - 健康检查通过，SQLite 本地挂载仍保持为项目 `data/` 目录。
+
+### SQLite 数据库无法打开
+
+用户反馈日志：
+
+> docker logs -f f74c5650cb35
+> 2026/06/18 10:00:03 open database: unable to open database file: no such file or directory
+> 2026/06/18 10:00:03 open database: unable to open database file: no such file or directory
+> 2026/06/18 10:00:03 open database: unable to open database file: no such file or directory
+> 2026/06/18 10:00:04 open database: unable to open database file: no such file or directory
+> 2026/06/18 10:00:05 open database: unable to open database file: no such file or directory
+> 2026/06/18 10:00:07 open database: unable to open database file: no such file or directory
+> 2026/06/18 10:00:10 open database: unable to open database file: no such file or directory
+> 2026/06/18 10:00:17 open database: unable to open database file: no such file or directory
+> 2026/06/18 10:00:30 open database: unable to open database file: no such file or directory
+> 2026/06/18 10:00:56 open database: unable to open database file: no such file or directory
+> 2026/06/18 10:01:48 open database: unable to open database file: no such file or directory
+
+处理计划：
+
+- Go 启动时提前创建 SQLite 父目录。
+- Go 启动时提前检查 SQLite 目录和文件写权限，输出更明确的路径错误。
+- Docker Compose 支持通过 `REQUESTLENS_UID` / `REQUESTLENS_GID` 指定容器运行用户。
+- `start.sh` 默认使用当前宿主机 UID/GID 启动容器，避免 Linux bind mount 权限不匹配。
+- `start.sh` 启动前检查数据目录是否可写。
+
+处理结果：
+
+- 已新增 SQLite 路径预检：目录创建、目录可写、已有 DB 文件可写。
+- 已让 Docker Compose 支持 `REQUESTLENS_UID` / `REQUESTLENS_GID`。
+- 已让 `start.sh` 默认导出当前宿主机 UID/GID。
+- 已通过 `REQUESTLENS_PORT=18080 ./start.sh` 重建启动验证。
+- 已确认容器用户为 `501:20`，挂载 `/Users/admin/Documents/RequestLens请求透镜/data -> /data` 且可写。
+- 已确认容器日志不再出现 `open database: unable to open database file`。

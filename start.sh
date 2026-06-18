@@ -8,6 +8,8 @@ DB_FILE="$DATA_DIR/requestlens.db"
 GO_IMAGE="${REQUESTLENS_GO_IMAGE:-golang:1.23-bookworm}"
 RUNTIME_IMAGE="${REQUESTLENS_RUNTIME_IMAGE:-debian:bookworm-slim}"
 GOPROXY_VALUE="${GOPROXY:-https://goproxy.cn,direct}"
+CONTAINER_UID="${REQUESTLENS_UID:-$(id -u)}"
+CONTAINER_GID="${REQUESTLENS_GID:-$(id -g)}"
 
 compose() {
   if ! command -v docker >/dev/null 2>&1; then
@@ -62,19 +64,34 @@ copy_existing_sqlite() {
   fi
 }
 
+ensure_data_dir_writable() {
+  mkdir -p "$DATA_DIR"
+
+  test_file="$DATA_DIR/.requestlens-write-test"
+  if ! : > "$test_file" 2>/dev/null; then
+    echo "数据目录不可写: $DATA_DIR"
+    echo "请执行: chmod u+rwx \"$DATA_DIR\""
+    exit 1
+  fi
+  rm -f "$test_file"
+}
+
 cd "$ROOT_DIR"
-mkdir -p "$DATA_DIR"
+ensure_data_dir_writable
 copy_existing_sqlite
 
 export REQUESTLENS_PORT="$PORT"
 export REQUESTLENS_DATA_DIR="$DATA_DIR"
 export REQUESTLENS_GO_IMAGE="$GO_IMAGE"
 export REQUESTLENS_RUNTIME_IMAGE="$RUNTIME_IMAGE"
+export REQUESTLENS_UID="$CONTAINER_UID"
+export REQUESTLENS_GID="$CONTAINER_GID"
 export GOPROXY="$GOPROXY_VALUE"
 
 echo "启动 RequestLens..."
 echo "服务端口: $PORT"
 echo "SQLite 数据库: $DB_FILE"
+echo "容器用户: $CONTAINER_UID:$CONTAINER_GID"
 echo "Go 构建镜像: $GO_IMAGE"
 echo "运行基础镜像: $RUNTIME_IMAGE"
 echo "Go 模块代理: $GOPROXY_VALUE"

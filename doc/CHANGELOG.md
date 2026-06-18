@@ -8,11 +8,14 @@
 - 启动脚本默认将 SQLite 保存到项目 `data/` 目录。
 - 启动脚本支持 `REQUESTLENS_PORT` 和 `REQUESTLENS_DATA_DIR`。
 - Docker 构建支持通过 `REQUESTLENS_GO_IMAGE` 和 `REQUESTLENS_RUNTIME_IMAGE` 指定基础镜像。
+- 启动脚本会检查 SQLite 数据目录是否可写。
+- 容器可通过 `REQUESTLENS_UID` 和 `REQUESTLENS_GID` 指定运行用户。
 
 ### 变更
 
 - Docker Compose 数据卷改为可配置的本地目录挂载，默认使用 `./data:/data`。
 - 运行镜像不再执行 `apt-get update`，改为从 builder 复制 CA 证书，减少构建卡住概率。
+- 程序启动时会提前创建并检查 SQLite 目录/文件写权限，错误日志包含具体路径。
 
 ## v1.0.0 - 2026-06-18
 
