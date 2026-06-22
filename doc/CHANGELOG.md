@@ -10,6 +10,8 @@
 - Docker 构建支持通过 `REQUESTLENS_GO_IMAGE` 和 `REQUESTLENS_RUNTIME_IMAGE` 指定基础镜像。
 - 启动脚本会检查 SQLite 数据目录是否可写。
 - 容器可通过 `REQUESTLENS_UID` 和 `REQUESTLENS_GID` 指定运行用户。
+- 管理页面和管理 API 支持 Token 认证，代理转发路径不需要 Token。
+- 新增数据库可视化页面，支持表结构查看、只读 SQL 查询、JSON/CSV 下载。
 
 ### 变更
 

@@ -1,5 +1,6 @@
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/.auth-token
 .DS_Store
 tmp/

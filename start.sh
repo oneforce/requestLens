@@ -5,12 +5,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="${REQUESTLENS_DATA_DIR:-$ROOT_DIR/data}"
 PORT="${REQUESTLENS_PORT:-8080}"
 DB_FILE="$DATA_DIR/requestlens.db"
+AUTH_TOKEN_FILE="${REQUESTLENS_AUTH_TOKEN_FILE:-$DATA_DIR/.auth-token}"
 GO_IMAGE="${REQUESTLENS_GO_IMAGE:-golang:1.23-bookworm}"
 RUNTIME_IMAGE="${REQUESTLENS_RUNTIME_IMAGE:-debian:bookworm-slim}"
 GOPROXY_VALUE="${GOPROXY:-https://goproxy.cn,direct}"
 CONTAINER_UID="${REQUESTLENS_UID:-$(id -u)}"
 CONTAINER_GID="${REQUESTLENS_GID:-$(id -g)}"
 MAX_BODY_SIZE="${REQUESTLENS_DEFAULT_MAX_BODY_SIZE:-0}"
+AUTH_TOKEN="${REQUESTLENS_AUTH_TOKEN:-}"
 
 compose() {
   if ! command -v docker >/dev/null 2>&1; then
@@ -77,8 +79,42 @@ ensure_data_dir_writable() {
   rm -f "$test_file"
 }
 
+generate_token() {
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - <<'PY'
+import secrets
+print(secrets.token_urlsafe(32))
+PY
+    return
+  fi
+
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
+    return
+  fi
+
+  date +%s%N
+}
+
+ensure_auth_token() {
+  if [ -n "$AUTH_TOKEN" ]; then
+    return
+  fi
+
+  if [ -f "$AUTH_TOKEN_FILE" ]; then
+    AUTH_TOKEN="$(tr -d '\r\n' < "$AUTH_TOKEN_FILE")"
+  fi
+
+  if [ -z "$AUTH_TOKEN" ]; then
+    AUTH_TOKEN="$(generate_token)"
+    umask 077
+    printf '%s\n' "$AUTH_TOKEN" > "$AUTH_TOKEN_FILE"
+  fi
+}
+
 cd "$ROOT_DIR"
 ensure_data_dir_writable
+ensure_auth_token
 copy_existing_sqlite
 
 export REQUESTLENS_PORT="$PORT"
@@ -88,11 +124,14 @@ export REQUESTLENS_RUNTIME_IMAGE="$RUNTIME_IMAGE"
 export REQUESTLENS_UID="$CONTAINER_UID"
 export REQUESTLENS_GID="$CONTAINER_GID"
 export REQUESTLENS_DEFAULT_MAX_BODY_SIZE="$MAX_BODY_SIZE"
+export REQUESTLENS_AUTH_TOKEN="$AUTH_TOKEN"
 export GOPROXY="$GOPROXY_VALUE"
 
 echo "启动 RequestLens..."
 echo "服务端口: $PORT"
 echo "SQLite 数据库: $DB_FILE"
+echo "管理 Token 文件: $AUTH_TOKEN_FILE"
+echo "管理 Token: $AUTH_TOKEN"
 echo "容器用户: $CONTAINER_UID:$CONTAINER_GID"
 echo "Body 保存上限: $([ "$MAX_BODY_SIZE" = "0" ] && echo "不限制" || echo "$MAX_BODY_SIZE bytes")"
 echo "Go 构建镜像: $GO_IMAGE"

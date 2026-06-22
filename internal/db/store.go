@@ -3,12 +3,14 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -145,6 +147,41 @@ type BodyContent struct {
 	StoredBytes   int    `json:"stored_bytes"`
 	OmittedReason string `json:"omitted_reason"`
 	Body          string `json:"body"`
+}
+
+type DatabaseSchema struct {
+	Tables []DatabaseTable `json:"tables"`
+}
+
+type DatabaseTable struct {
+	Name    string           `json:"name"`
+	Type    string           `json:"type"`
+	Columns []DatabaseColumn `json:"columns"`
+}
+
+type DatabaseColumn struct {
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	NotNull    bool   `json:"not_null"`
+	Default    string `json:"default"`
+	PrimaryKey bool   `json:"primary_key"`
+}
+
+type DatabaseQueryResult struct {
+	Columns    []string          `json:"columns"`
+	Rows       [][]DatabaseValue `json:"rows"`
+	RowCount   int               `json:"row_count"`
+	Limit      int               `json:"limit"`
+	Truncated  bool              `json:"truncated"`
+	DurationMS int64             `json:"duration_ms"`
+}
+
+type DatabaseValue struct {
+	Type   string `json:"type"`
+	Text   string `json:"text,omitempty"`
+	Base64 string `json:"base64,omitempty"`
+	Bytes  int    `json:"bytes,omitempty"`
+	Null   bool   `json:"null,omitempty"`
 }
 
 func Open(path string) (*Store, error) {
@@ -581,6 +618,166 @@ func (s *Store) GetBody(ctx context.Context, id int64, kind string) (BodyContent
 		OmittedReason: omitted,
 		Body:          string(body),
 	}, nil
+}
+
+func (s *Store) DatabaseSchema(ctx context.Context) (DatabaseSchema, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY type, name`)
+	if err != nil {
+		return DatabaseSchema{}, err
+	}
+
+	schema := DatabaseSchema{Tables: []DatabaseTable{}}
+	for rows.Next() {
+		var table DatabaseTable
+		if err := rows.Scan(&table.Name, &table.Type); err != nil {
+			_ = rows.Close()
+			return DatabaseSchema{}, err
+		}
+		schema.Tables = append(schema.Tables, table)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return DatabaseSchema{}, err
+	}
+	if err := rows.Close(); err != nil {
+		return DatabaseSchema{}, err
+	}
+	for i := range schema.Tables {
+		columns, err := s.databaseColumns(ctx, schema.Tables[i].Name)
+		if err != nil {
+			return DatabaseSchema{}, err
+		}
+		schema.Tables[i].Columns = columns
+	}
+	return schema, nil
+}
+
+func (s *Store) databaseColumns(ctx context.Context, table string) ([]DatabaseColumn, error) {
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(`+quoteIdentifier(table)+`)`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	columns := []DatabaseColumn{}
+	for rows.Next() {
+		var cid int
+		var column DatabaseColumn
+		var notNull int
+		var primaryKey int
+		var defaultValue sql.NullString
+		if err := rows.Scan(&cid, &column.Name, &column.Type, &notNull, &defaultValue, &primaryKey); err != nil {
+			return nil, err
+		}
+		column.NotNull = intToBool(notNull)
+		column.PrimaryKey = intToBool(primaryKey)
+		if defaultValue.Valid {
+			column.Default = defaultValue.String
+		}
+		columns = append(columns, column)
+	}
+	return columns, rows.Err()
+}
+
+func (s *Store) QueryDatabase(ctx context.Context, sqlText string, limit int) (DatabaseQueryResult, error) {
+	sqlText, err := normalizeReadOnlySQL(sqlText)
+	if err != nil {
+		return DatabaseQueryResult{}, err
+	}
+	if limit <= 0 {
+		limit = 500
+	}
+	if limit > 10000 {
+		limit = 10000
+	}
+
+	start := time.Now()
+	rows, err := s.db.QueryContext(ctx, sqlText)
+	if err != nil {
+		return DatabaseQueryResult{}, err
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return DatabaseQueryResult{}, err
+	}
+
+	result := DatabaseQueryResult{
+		Columns: columns,
+		Rows:    [][]DatabaseValue{},
+		Limit:   limit,
+	}
+	for rows.Next() {
+		values := make([]any, len(columns))
+		targets := make([]any, len(columns))
+		for i := range values {
+			targets[i] = &values[i]
+		}
+		if err := rows.Scan(targets...); err != nil {
+			return DatabaseQueryResult{}, err
+		}
+		if len(result.Rows) >= limit {
+			result.Truncated = true
+			break
+		}
+		row := make([]DatabaseValue, len(columns))
+		for i, value := range values {
+			row[i] = databaseValue(value)
+		}
+		result.Rows = append(result.Rows, row)
+	}
+	if err := rows.Err(); err != nil {
+		return DatabaseQueryResult{}, err
+	}
+	result.RowCount = len(result.Rows)
+	result.DurationMS = time.Since(start).Milliseconds()
+	return result, nil
+}
+
+func normalizeReadOnlySQL(sqlText string) (string, error) {
+	sqlText = strings.TrimSpace(sqlText)
+	if sqlText == "" {
+		return "", errors.New("sql is required")
+	}
+	for strings.HasSuffix(sqlText, ";") {
+		sqlText = strings.TrimSpace(strings.TrimSuffix(sqlText, ";"))
+	}
+	if strings.Contains(sqlText, ";") {
+		return "", errors.New("only one SQL statement is allowed")
+	}
+	if !strings.HasPrefix(strings.ToLower(sqlText), "select") {
+		return "", errors.New("only read-only SELECT statements are allowed")
+	}
+	return sqlText, nil
+}
+
+func databaseValue(value any) DatabaseValue {
+	switch v := value.(type) {
+	case nil:
+		return DatabaseValue{Type: "null", Null: true}
+	case []byte:
+		if utf8.Valid(v) {
+			return DatabaseValue{Type: "text", Text: string(v), Bytes: len(v)}
+		}
+		return DatabaseValue{Type: "blob", Base64: base64.StdEncoding.EncodeToString(v), Bytes: len(v)}
+	case string:
+		return DatabaseValue{Type: "text", Text: v, Bytes: len(v)}
+	case int64:
+		return DatabaseValue{Type: "integer", Text: fmt.Sprintf("%d", v)}
+	case float64:
+		return DatabaseValue{Type: "float", Text: fmt.Sprintf("%g", v)}
+	case bool:
+		return DatabaseValue{Type: "bool", Text: fmt.Sprintf("%t", v)}
+	case time.Time:
+		return DatabaseValue{Type: "time", Text: v.Format(time.RFC3339Nano)}
+	default:
+		return DatabaseValue{Type: "text", Text: fmt.Sprint(v)}
+	}
+}
+
+func quoteIdentifier(value string) string {
+	return `"` + strings.ReplaceAll(value, `"`, `""`) + `"`
 }
 
 func (s *Store) DeleteLog(ctx context.Context, id int64) error {

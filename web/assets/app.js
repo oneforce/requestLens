@@ -7,6 +7,10 @@ const state = {
   logs: [],
   selectedLogId: null,
   bodyCache: new Map(),
+  authEnabled: false,
+  authToken: localStorage.getItem("requestlens_token") || "",
+  databaseSchema: null,
+  databaseResult: null,
   autoRefresh: false,
   timer: null,
 };
@@ -16,11 +20,17 @@ async function api(path, options = {}) {
     method: options.method || "GET",
     headers: { "Content-Type": "application/json" },
   };
+  if (state.authToken) {
+    init.headers["X-RequestLens-Token"] = state.authToken;
+  }
   if (options.body !== undefined) {
     init.body = JSON.stringify(options.body);
   }
   const response = await fetch(path, init);
   const payload = await response.json().catch(() => null);
+  if (response.status === 401) {
+    showLogin(payload?.error?.message || "需要访问 Token");
+  }
   if (!response.ok || !payload?.ok) {
     const message = payload?.error?.message || response.statusText || "请求失败";
     throw new Error(message);
@@ -49,6 +59,71 @@ function setView(view) {
   if (view === "rules") {
     loadRules();
   }
+  if (view === "database") {
+    loadDatabaseSchema();
+  }
+}
+
+async function loadAuthStatus() {
+  const response = await fetch("/api/auth/status");
+  const payload = await response.json().catch(() => null);
+  state.authEnabled = Boolean(payload?.data?.enabled);
+  $("#logoutBtn").classList.toggle("hidden", !state.authEnabled);
+  if (state.authEnabled && !state.authToken) {
+    showLogin("");
+    return false;
+  }
+  hideLogin();
+  return true;
+}
+
+function showLogin(message) {
+  if (!state.authEnabled) return;
+  $("#authGate").classList.remove("hidden");
+  $("#authMessage").textContent = message || "";
+}
+
+function hideLogin() {
+  $("#authGate").classList.add("hidden");
+  $("#authMessage").textContent = "";
+}
+
+async function loginWithToken(event) {
+  event.preventDefault();
+  const token = $("#authTokenInput").value.trim();
+  if (!token) {
+    $("#authMessage").textContent = "请输入 Token";
+    return;
+  }
+  state.authToken = token;
+  localStorage.setItem("requestlens_token", token);
+  try {
+    await loadHealth();
+    hideLogin();
+    await bootstrapManagement();
+    toast("已进入");
+  } catch (error) {
+    state.authToken = "";
+    localStorage.removeItem("requestlens_token");
+    showLogin(error.message);
+  }
+}
+
+function logout() {
+  state.authToken = "";
+  localStorage.removeItem("requestlens_token");
+  showLogin("");
+}
+
+async function bootstrapManagement() {
+  await loadHealth();
+  await loadRules();
+  if (state.view === "database") {
+    await loadDatabaseSchema();
+  } else {
+    await loadLogs();
+  }
+  setView(["rules", "database"].includes(state.view) ? state.view : "logs");
 }
 
 async function loadHealth() {
@@ -514,7 +589,145 @@ function escapeAttr(value) {
   return escapeHTML(value).replaceAll("\n", " ");
 }
 
+async function loadDatabaseSchema() {
+  try {
+    state.databaseSchema = await api("/api/database/schema");
+    renderDatabaseSchema();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+function renderDatabaseSchema() {
+  const wrap = $("#databaseSchema");
+  const tables = state.databaseSchema?.tables || [];
+  if (!tables.length) {
+    wrap.innerHTML = `<div class="muted">暂无表</div>`;
+    return;
+  }
+  wrap.innerHTML = tables
+    .map((table) => {
+      const columns = (table.columns || [])
+        .map(
+          (column) => `
+            <div class="schema-column">
+              <span class="mono">${escapeHTML(column.name)}</span>
+              <span>${escapeHTML(column.type || "-")}${column.primary_key ? " PK" : ""}</span>
+            </div>
+          `,
+        )
+        .join("");
+      return `
+        <details class="schema-table" open>
+          <summary><strong>${escapeHTML(table.name)}</strong> <span class="muted">${escapeHTML(table.type)}</span></summary>
+          <div class="schema-columns">${columns}</div>
+        </details>
+      `;
+    })
+    .join("");
+}
+
+async function runDatabaseQuery() {
+  const sql = $("#databaseSql").value.trim();
+  const limit = Number($("#databaseLimit").value || 1000);
+  $("#databaseFeedback").textContent = "";
+  $("#databaseMeta").textContent = "执行中";
+  try {
+    const result = await api("/api/database/query", { method: "POST", body: { sql, limit } });
+    state.databaseResult = result;
+    renderDatabaseResults(result);
+    $("#downloadJsonBtn").disabled = !result.rows.length;
+    $("#downloadCsvBtn").disabled = !result.rows.length;
+    $("#databaseMeta").textContent = `${result.row_count} 行 · ${result.duration_ms} ms${result.truncated ? " · 已截断显示" : ""}`;
+  } catch (error) {
+    state.databaseResult = null;
+    $("#downloadJsonBtn").disabled = true;
+    $("#downloadCsvBtn").disabled = true;
+    $("#databaseMeta").textContent = "执行失败";
+    $("#databaseFeedback").textContent = error.message;
+    $("#databaseResults").innerHTML = "";
+  }
+}
+
+function renderDatabaseResults(result) {
+  const wrap = $("#databaseResults");
+  if (!result.columns.length) {
+    wrap.innerHTML = `<div class="empty-state"><strong>无列</strong></div>`;
+    return;
+  }
+  if (!result.rows.length) {
+    wrap.innerHTML = `<div class="empty-state"><strong>无结果</strong></div>`;
+    return;
+  }
+  const head = result.columns.map((column) => `<th>${escapeHTML(column)}</th>`).join("");
+  const body = result.rows
+    .map((row) => `<tr>${row.map((value) => `<td class="mono db-value" title="${escapeAttr(databaseValueText(value))}">${escapeHTML(databaseValueText(value))}</td>`).join("")}</tr>`)
+    .join("");
+  wrap.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function databaseValueText(value) {
+  if (!value || value.null) return "NULL";
+  if (value.type === "blob") return `[BLOB ${formatBytes(value.bytes)}]`;
+  return value.text ?? "";
+}
+
+function databaseExportValue(value) {
+  if (!value || value.null) return null;
+  if (value.type === "blob") {
+    return { base64: value.base64, bytes: value.bytes };
+  }
+  return value.text ?? "";
+}
+
+function databaseRowsForExport(result) {
+  return result.rows.map((row) => {
+    const item = {};
+    result.columns.forEach((column, index) => {
+      item[column] = databaseExportValue(row[index]);
+    });
+    return item;
+  });
+}
+
+function downloadDatabaseJSON() {
+  const result = state.databaseResult;
+  if (!result) return;
+  saveTextFile("requestlens-query.json", JSON.stringify(databaseRowsForExport(result), null, 2), "application/json;charset=utf-8");
+}
+
+function downloadDatabaseCSV() {
+  const result = state.databaseResult;
+  if (!result) return;
+  const lines = [result.columns.map(csvCell).join(",")];
+  databaseRowsForExport(result).forEach((row) => {
+    lines.push(result.columns.map((column) => csvCell(row[column])).join(","));
+  });
+  saveTextFile("requestlens-query.csv", lines.join("\n"), "text/csv;charset=utf-8");
+}
+
+function csvCell(value) {
+  if (value === null || value === undefined) return "";
+  const text = typeof value === "object" ? JSON.stringify(value) : String(value);
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function saveTextFile(filename, text, type) {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  toast(`已下载 ${filename}`);
+}
+
 function bindEvents() {
+  $("#authForm").addEventListener("submit", loginWithToken);
+  $("#logoutBtn").addEventListener("click", logout);
   $$(".nav-tab").forEach((btn) => btn.addEventListener("click", () => setView(btn.dataset.view)));
   $("#refreshLogsBtn").addEventListener("click", loadLogs);
   $("#autoRefreshBtn").addEventListener("click", () => {
@@ -580,6 +793,10 @@ function bindEvents() {
       toast(error.message);
     }
   });
+  $("#refreshSchemaBtn").addEventListener("click", loadDatabaseSchema);
+  $("#runSqlBtn").addEventListener("click", runDatabaseQuery);
+  $("#downloadJsonBtn").addEventListener("click", downloadDatabaseJSON);
+  $("#downloadCsvBtn").addEventListener("click", downloadDatabaseCSV);
 }
 
 function debounce(fn, wait) {
@@ -592,7 +809,16 @@ function debounce(fn, wait) {
 
 window.addEventListener("hashchange", () => setView(location.hash.replace("#", "") || "logs"));
 
-bindEvents();
-loadHealth();
-loadRules().then(loadLogs);
-setView(state.view === "rules" ? "rules" : "logs");
+async function init() {
+  bindEvents();
+  const authenticated = await loadAuthStatus();
+  if (authenticated) {
+    try {
+      await bootstrapManagement();
+    } catch (error) {
+      showLogin(error.message);
+    }
+  }
+}
+
+init();

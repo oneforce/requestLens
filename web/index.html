@@ -4,9 +4,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RequestLens</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=20260622-body-limit" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260622-db" />
   </head>
   <body>
+    <div id="authGate" class="auth-gate hidden">
+      <form id="authForm" class="auth-panel">
+        <div class="brand-mark">RL</div>
+        <h2>访问 Token</h2>
+        <input id="authTokenInput" type="password" autocomplete="current-password" placeholder="输入启动脚本输出的 Token" />
+        <button class="primary-btn" type="submit">进入</button>
+        <p id="authMessage" class="auth-message"></p>
+      </form>
+    </div>
+
     <div class="app-shell">
       <header class="topbar">
         <div class="brand">
@@ -19,7 +29,9 @@
         <nav class="nav-tabs" aria-label="Primary">
           <button class="nav-tab active" data-view="logs">请求日志</button>
           <button class="nav-tab" data-view="rules">代理规则</button>
+          <button class="nav-tab" data-view="database">数据库</button>
         </nav>
+        <button id="logoutBtn" class="ghost-btn hidden" type="button">退出</button>
       </header>
 
       <main>
@@ -181,10 +193,46 @@
             </section>
           </div>
         </section>
+
+        <section id="databaseView" class="view">
+          <div class="database-layout">
+            <section class="panel schema-panel">
+              <div class="panel-title">
+                <h2>表结构</h2>
+                <button id="refreshSchemaBtn" class="icon-btn" title="刷新" aria-label="刷新">↻</button>
+              </div>
+              <div id="databaseSchema" class="schema-list"></div>
+            </section>
+
+            <section class="panel sql-panel">
+              <div class="panel-title">
+                <h2>SQL 查询</h2>
+                <span id="databaseMeta">待执行</span>
+              </div>
+              <div class="sql-workbench">
+                <label>
+                  <span>SQL</span>
+                  <textarea id="databaseSql" spellcheck="false">SELECT id, started_at, method, response_status, original_url FROM http_logs ORDER BY id DESC LIMIT 100</textarea>
+                </label>
+                <div class="sql-actions">
+                  <label>
+                    <span>最多行数</span>
+                    <input id="databaseLimit" type="number" min="1" max="10000" value="1000" />
+                  </label>
+                  <button id="runSqlBtn" class="primary-btn" type="button">执行</button>
+                  <button id="downloadJsonBtn" class="ghost-btn" type="button" disabled>JSON</button>
+                  <button id="downloadCsvBtn" class="ghost-btn" type="button" disabled>CSV</button>
+                </div>
+                <pre id="databaseFeedback" class="feedback"></pre>
+              </div>
+              <div id="databaseResults" class="table-wrap db-results"></div>
+            </section>
+          </div>
+        </section>
       </main>
     </div>
 
     <div id="toast" class="toast" hidden></div>
-    <script src="/assets/app.js?v=20260622-body-limit"></script>
+    <script src="/assets/app.js?v=20260622-db"></script>
   </body>
 </html>

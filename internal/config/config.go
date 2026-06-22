@@ -9,6 +9,7 @@ import (
 type Config struct {
 	Addr                  string
 	DBPath                string
+	AuthToken             string
 	DefaultMaxBodySize    int64
 	LogRetentionDays      int
 	ResponseHeaderTimeout time.Duration
@@ -19,6 +20,7 @@ func Load() Config {
 	return Config{
 		Addr:                  getenv("REQUESTLENS_ADDR", ":8080"),
 		DBPath:                getenv("REQUESTLENS_DB_PATH", "data/requestlens.db"),
+		AuthToken:             getenv("REQUESTLENS_AUTH_TOKEN", ""),
 		DefaultMaxBodySize:    getenvInt64("REQUESTLENS_DEFAULT_MAX_BODY_SIZE", 0),
 		LogRetentionDays:      getenvInt("REQUESTLENS_LOG_RETENTION_DAYS", 14),
 		ResponseHeaderTimeout: time.Duration(getenvInt("REQUESTLENS_RESPONSE_HEADER_TIMEOUT_SECONDS", 60)) * time.Second,

@@ -21,6 +21,7 @@ import (
 type Handler struct {
 	store              *db.Store
 	defaultMaxBodySize int64
+	authEnabled        bool
 	client             *http.Client
 }
 
@@ -39,6 +40,7 @@ func NewHandler(store *db.Store, cfg config.Config) *Handler {
 	return &Handler{
 		store:              store,
 		defaultMaxBodySize: cfg.DefaultMaxBodySize,
+		authEnabled:        cfg.AuthToken != "",
 		client:             &http.Client{Timeout: 5 * time.Second},
 	}
 }
@@ -46,8 +48,12 @@ func NewHandler(store *db.Store, cfg config.Config) *Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	switch {
+	case r.URL.Path == "/api/auth/status":
+		h.handleAuthStatus(w, r)
 	case r.URL.Path == "/api/health":
 		h.handleHealth(w, r)
+	case r.URL.Path == "/api/database" || strings.HasPrefix(r.URL.Path, "/api/database/"):
+		h.handleDatabase(w, r)
 	case r.URL.Path == "/api/rules" || strings.HasPrefix(r.URL.Path, "/api/rules/"):
 		h.handleRules(w, r)
 	case r.URL.Path == "/api/logs" || strings.HasPrefix(r.URL.Path, "/api/logs/"):
@@ -55,6 +61,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeError(w, http.StatusNotFound, "not_found", "api route not found")
 	}
+}
+
+func (h *Handler) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+	writeOK(w, map[string]any{"enabled": h.authEnabled})
 }
 
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -392,6 +406,52 @@ func (h *Handler) getBody(w http.ResponseWriter, r *http.Request, id int64, kind
 		return
 	}
 	writeOK(w, body)
+}
+
+func (h *Handler) handleDatabase(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {
+	case "/api/database/schema":
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+			return
+		}
+		schema, err := h.store.DatabaseSchema(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "store_error", err.Error())
+			return
+		}
+		writeOK(w, schema)
+	case "/api/database/query":
+		if r.Method != http.MethodPost {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+			return
+		}
+		h.queryDatabase(w, r)
+	default:
+		writeError(w, http.StatusNotFound, "not_found", "database route not found")
+	}
+}
+
+type databaseQueryRequest struct {
+	SQL   string `json:"sql"`
+	Limit int    `json:"limit"`
+}
+
+func (h *Handler) queryDatabase(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	var payload databaseQueryRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&payload); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	result, err := h.store.QueryDatabase(r.Context(), payload.SQL, payload.Limit)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "sql_error", err.Error())
+		return
+	}
+	writeOK(w, result)
 }
 
 type ruleRequest struct {
