@@ -38,10 +38,11 @@ func (c *BodyCapture) WriteObserved(p []byte) {
 		return
 	}
 	c.size += int64(len(p))
-	if !c.store || c.max == 0 {
-		if c.store {
-			c.truncated = true
-		}
+	if !c.store {
+		return
+	}
+	if c.max == 0 {
+		c.buf.Write(p)
 		return
 	}
 	remaining := c.max - int64(c.buf.Len())

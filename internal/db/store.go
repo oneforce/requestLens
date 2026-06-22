@@ -245,7 +245,7 @@ func (s *Store) migrate(ctx context.Context) error {
 			capture_response_headers INTEGER NOT NULL DEFAULT 1,
 			capture_request_body INTEGER NOT NULL DEFAULT 1,
 			capture_response_body INTEGER NOT NULL DEFAULT 1,
-			max_body_size INTEGER NOT NULL DEFAULT 262144,
+			max_body_size INTEGER NOT NULL DEFAULT 0,
 			allow_binary_preview INTEGER NOT NULL DEFAULT 0,
 			allow_stream_preview INTEGER NOT NULL DEFAULT 0,
 			redact_sensitive_headers INTEGER NOT NULL DEFAULT 1,
@@ -303,6 +303,25 @@ func (s *Store) migrate(ctx context.Context) error {
 	}
 	for _, stmt := range statements {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	if err := s.runVersionedMigrations(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) runVersionedMigrations(ctx context.Context) error {
+	var version int
+	if err := s.db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+		return err
+	}
+	if version < 1 {
+		if _, err := s.db.ExecContext(ctx, `UPDATE proxy_rules SET max_body_size = 0 WHERE max_body_size = 262144`); err != nil {
+			return err
+		}
+		if _, err := s.db.ExecContext(ctx, `PRAGMA user_version = 1`); err != nil {
 			return err
 		}
 	}

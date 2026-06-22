@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RequestLens</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=20260618-light" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260622-body-limit" />
   </head>
   <body>
     <div class="app-shell">
@@ -153,7 +153,7 @@
                 </label>
                 <label>
                   <span>Body 上限</span>
-                  <input id="ruleMaxBody" type="number" min="0" value="262144" />
+                  <input id="ruleMaxBody" type="number" min="0" value="0" placeholder="0 表示不限制" />
                 </label>
                 <label>
                   <span>CORS 策略</span>
@@ -185,6 +185,6 @@
     </div>
 
     <div id="toast" class="toast" hidden></div>
-    <script src="/assets/app.js?v=20260618-light"></script>
+    <script src="/assets/app.js?v=20260622-body-limit"></script>
   </body>
 </html>

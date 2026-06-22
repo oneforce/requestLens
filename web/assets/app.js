@@ -100,7 +100,7 @@ function renderRules() {
       <td>
         <span class="badge ${rule.capture_request_body ? "ok" : ""}">REQ</span>
         <span class="badge ${rule.capture_response_body ? "ok" : ""}">RES</span>
-        <span class="badge">${formatBytes(rule.max_body_size)}</span>
+        <span class="badge">${formatCaptureLimit(rule.max_body_size)}</span>
       </td>
       <td>
         <div class="row-actions">
@@ -147,7 +147,7 @@ function fillRuleForm(rule) {
   $("#ruleEnabled").checked = rule?.enabled ?? true;
   $("#ruleReqBody").checked = rule?.capture_request_body ?? true;
   $("#ruleResBody").checked = rule?.capture_response_body ?? true;
-  $("#ruleMaxBody").value = rule?.max_body_size || 262144;
+  $("#ruleMaxBody").value = rule?.max_body_size ?? 0;
   $("#ruleBinary").checked = rule?.allow_binary_preview ?? false;
   $("#ruleStream").checked = rule?.allow_stream_preview ?? false;
   $("#ruleRedact").checked = rule?.redact_sensitive_headers ?? true;
@@ -485,6 +485,10 @@ function formatBytes(value) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatCaptureLimit(value) {
+  return Number(value || 0) === 0 ? "不限制" : formatBytes(value);
 }
 
 function formatTime(value) {

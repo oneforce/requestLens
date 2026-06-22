@@ -19,7 +19,7 @@ func Load() Config {
 	return Config{
 		Addr:                  getenv("REQUESTLENS_ADDR", ":8080"),
 		DBPath:                getenv("REQUESTLENS_DB_PATH", "data/requestlens.db"),
-		DefaultMaxBodySize:    getenvInt64("REQUESTLENS_DEFAULT_MAX_BODY_SIZE", 256*1024),
+		DefaultMaxBodySize:    getenvInt64("REQUESTLENS_DEFAULT_MAX_BODY_SIZE", 0),
 		LogRetentionDays:      getenvInt("REQUESTLENS_LOG_RETENTION_DAYS", 14),
 		ResponseHeaderTimeout: time.Duration(getenvInt("REQUESTLENS_RESPONSE_HEADER_TIMEOUT_SECONDS", 60)) * time.Second,
 		ShutdownTimeout:       10 * time.Second,

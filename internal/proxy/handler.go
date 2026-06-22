@@ -129,7 +129,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	maxBodySize := rule.MaxBodySize
-	if maxBodySize <= 0 {
+	if maxBodySize < 0 {
 		maxBodySize = h.defaultMaxBodySize
 	}
 
@@ -316,13 +316,13 @@ func prepareRequestBodyForForward(r *http.Request, capture *BodyCapture, store b
 }
 
 func shouldPreBufferRequestBody(r *http.Request, store bool, maxBodySize int64, class Classification) bool {
-	if !store || maxBodySize <= 0 || class.IsStream {
+	if !store || class.IsStream {
 		return false
 	}
 	if r.ContentLength < 0 {
 		return false
 	}
-	return r.ContentLength <= maxBodySize
+	return maxBodySize == 0 || r.ContentLength <= maxBodySize
 }
 
 func copyAndFlush(w http.ResponseWriter, src io.Reader) (int64, error) {

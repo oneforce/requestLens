@@ -203,3 +203,43 @@
 - 已通过 `REQUESTLENS_PORT=18080 ./start.sh` 重建启动验证。
 - 已确认容器用户为 `501:20`，挂载 `/Users/admin/Documents/RequestLens请求透镜/data -> /data` 且可写。
 - 已确认容器日志不再出现 `open database: unable to open database file`。
+
+## 2026-06-22
+
+### 数据库与请求导出
+
+用户询问：
+
+> 数据库用的是什么， 我要讲请求都获取出来， 怎么操作
+
+处理计划：
+
+- 说明当前使用 SQLite。
+- 说明本地数据库文件位置。
+- 给出通过 SQLite 直接导出所有请求记录的操作方式。
+- 给出通过 HTTP API 导出请求记录的操作方式。
+
+### 大 Body 不截断保存
+
+用户反馈：
+
+> 我看了， 请求超过256k， 就截断了， 我需要能保存下来
+
+处理计划：
+
+- 将 Body 保存上限语义改为 `0` 表示不按大小截断。
+- 默认 `REQUESTLENS_DEFAULT_MAX_BODY_SIZE` 改为 `0`。
+- 新建规则默认 Body 上限为 `0`。
+- 已有规则中旧默认 `262144` 自动迁移为 `0`。
+- 前端规则列表显示 `不限制`，规则表单提示 `0 表示不限制`。
+- 保持二进制默认不保存；JSON/Text 会按规则保存完整 body。
+
+处理结果：
+
+- 已修改捕获逻辑：`max_body_size=0` 会完整写入 capture buffer，不再当作不保存。
+- 已修改代理逻辑：规则 `max_body_size=0` 不再回退到默认 256KB。
+- 已修改规则 API：允许保存 `max_body_size=0`。
+- 已修改默认配置和 Docker Compose：`REQUESTLENS_DEFAULT_MAX_BODY_SIZE=0`。
+- 已修改启动脚本：启动时显示 `Body 保存上限: 不限制`。
+- 已增加数据库迁移：已有规则旧默认 `262144` 自动更新为 `0`。
+- 已用 307,215 字节 JSON 请求实测，Request Body 已存 307,215 字节，未截断。

@@ -10,6 +10,7 @@ RUNTIME_IMAGE="${REQUESTLENS_RUNTIME_IMAGE:-debian:bookworm-slim}"
 GOPROXY_VALUE="${GOPROXY:-https://goproxy.cn,direct}"
 CONTAINER_UID="${REQUESTLENS_UID:-$(id -u)}"
 CONTAINER_GID="${REQUESTLENS_GID:-$(id -g)}"
+MAX_BODY_SIZE="${REQUESTLENS_DEFAULT_MAX_BODY_SIZE:-0}"
 
 compose() {
   if ! command -v docker >/dev/null 2>&1; then
@@ -86,12 +87,14 @@ export REQUESTLENS_GO_IMAGE="$GO_IMAGE"
 export REQUESTLENS_RUNTIME_IMAGE="$RUNTIME_IMAGE"
 export REQUESTLENS_UID="$CONTAINER_UID"
 export REQUESTLENS_GID="$CONTAINER_GID"
+export REQUESTLENS_DEFAULT_MAX_BODY_SIZE="$MAX_BODY_SIZE"
 export GOPROXY="$GOPROXY_VALUE"
 
 echo "启动 RequestLens..."
 echo "服务端口: $PORT"
 echo "SQLite 数据库: $DB_FILE"
 echo "容器用户: $CONTAINER_UID:$CONTAINER_GID"
+echo "Body 保存上限: $([ "$MAX_BODY_SIZE" = "0" ] && echo "不限制" || echo "$MAX_BODY_SIZE bytes")"
 echo "Go 构建镜像: $GO_IMAGE"
 echo "运行基础镜像: $RUNTIME_IMAGE"
 echo "Go 模块代理: $GOPROXY_VALUE"

@@ -122,9 +122,11 @@ https://api.deepseek.com/v1/chat/completions
 | --- | --- |
 | `REQUESTLENS_ADDR` | `:8080` |
 | `REQUESTLENS_DB_PATH` | `data/requestlens.db` |
-| `REQUESTLENS_DEFAULT_MAX_BODY_SIZE` | `262144` |
+| `REQUESTLENS_DEFAULT_MAX_BODY_SIZE` | `0` |
 | `REQUESTLENS_LOG_RETENTION_DAYS` | `14` |
 | `REQUESTLENS_RESPONSE_HEADER_TIMEOUT_SECONDS` | `60` |
+
+`REQUESTLENS_DEFAULT_MAX_BODY_SIZE=0` 表示 Request / Response Body 不按大小截断，会完整保存到 SQLite；如果希望限制保存大小，可以设置为字节数，例如 `16777216`。
 
 ## 文档
 

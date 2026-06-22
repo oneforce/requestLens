@@ -522,9 +522,6 @@ func buildRuleFromPayload(payload ruleRequest, existing *db.ProxyRule, defaultMa
 	if rule.MaxBodySize < 0 {
 		return db.ProxyRule{}, errors.New("max_body_size cannot be negative")
 	}
-	if rule.MaxBodySize == 0 {
-		rule.MaxBodySize = defaultMaxBodySize
-	}
 	if rule.CorsMode == "" {
 		rule.CorsMode = "passthrough"
 	}
