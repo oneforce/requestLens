@@ -273,3 +273,24 @@
 - SQL API 只允许单条 `SELECT` 查询，写 SQL 会返回 400。
 - 已验证无 Token 访问 `/api/logs` 返回 401，带 Token 查询数据库返回 200。
 - 已通过桌面和手机宽度浏览器检查，无控制台错误和页面横向溢出。
+
+### 本地启动
+
+用户要求：
+
+> 本地启动下
+
+处理计划：
+
+- 检查当前 Docker 容器运行状态。
+- 因本机 `8080` 端口已有其他服务占用，继续使用 `18080` 启动 RequestLens。
+- 通过 `start.sh` 启动并确认服务可访问。
+
+处理结果：
+
+- 已执行 `REQUESTLENS_PORT=18080 ./start.sh`。
+- Docker 已重新构建并启动 `requestlens` 容器。
+- 服务地址为 `http://localhost:18080/`。
+- 已确认首页返回 `200`。
+- 已确认带管理 Token 访问 `/api/database/schema` 返回 `200`。
+- 容器日志显示 `RequestLens listening on :8080`，宿主机映射为 `18080 -> 8080`。
