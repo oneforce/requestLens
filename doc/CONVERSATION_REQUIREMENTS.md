@@ -294,3 +294,14 @@
 - 已确认首页返回 `200`。
 - 已确认带管理 Token 访问 `/api/database/schema` 返回 `200`。
 - 容器日志显示 `RequestLens listening on :8080`，宿主机映射为 `18080 -> 8080`。
+
+### 访问 Token 查询
+
+用户要求：
+
+> 访问token是多少
+
+处理结果：
+
+- 已从本地 `data/.auth-token` 读取当前管理 Token。
+- 未将 Token 明文写入需求文档。
